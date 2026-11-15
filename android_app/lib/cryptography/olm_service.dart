@@ -73,7 +73,7 @@ class OlmService {
       : encodeB64u(_account!.ed25519Key.toBytes());
 
   static Future<void> initialise() async {
-    if (!fv.isInitialized()) {
+    if (!isInitialized()) {
       await fv.init();
     }
   }
@@ -331,9 +331,11 @@ class OlmService {
     // Bind the ephemeral SAS secret to the authenticated pair, session, and
     // both stable signing identities. A relay-created split session therefore
     // produces different comparison codes on the two devices.
-    final digest = sha.sha256
-        .convert(<int>[...established.bytes, ...utf8.encode(transcript)])
-        .bytes;
+    final sasBytes = established.generateBytes(
+      'secretplay.sas-code.v1|$transcript',
+      32,
+    );
+    final digest = sha.sha256.convert(sasBytes).bytes;
     final value =
         ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) &
         0x7fffffff;

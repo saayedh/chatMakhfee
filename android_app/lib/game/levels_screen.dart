@@ -57,7 +57,9 @@ class _LevelCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stars = ref.watch(levelStarsProvider(difficulty.id)).valueOrNull ?? 0;
+    final stars = (ref.watch(levelStarsProvider(difficulty.id)).asData?.value ?? 0)
+        .clamp(0, 3)
+        .toInt();
     return Container(
       decoration: BoxDecoration(
         color: SpColors.surface,

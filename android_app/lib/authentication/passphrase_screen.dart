@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';
+import 'auth_service.dart';
 import '../security/native_bridge.dart';
 import '../app/theme.dart';
 import 'lock_controller.dart';

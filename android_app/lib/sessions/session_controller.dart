@@ -88,7 +88,13 @@ class SessionController extends Notifier<SessionView> {
     return SessionView(snapshot: _machine.snapshot, messages: const []);
   }
 
-  OlmService get olm => _olm ??= ref.read(olmServiceProvider);
+  OlmService get olm {
+    final current = _olm;
+    if (current != null) return current;
+    final created = ref.read(olmServiceProvider);
+    _olm = created;
+    return created;
+  }
 
   SecureStore get _store => ref.read(secureStoreProvider);
 

@@ -42,7 +42,10 @@ class PassphrasePolicy {
 }
 
 class AuthResult {
-  const AuthResult.success() : ok = true, message = null;
+  const AuthResult.success()
+    : ok = true,
+      message = null,
+      retryAfter = null;
   const AuthResult.failure(this.message, {this.retryAfter}) : ok = false;
 
   final bool ok;

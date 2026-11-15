@@ -499,3 +499,4 @@ class PairingService {
     await _store.delete(SecureKeys.localWsUrl);
     await _store.delete(SecureKeys.cloudWsUrl);
   }
+}

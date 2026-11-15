@@ -1,7 +1,7 @@
 /// The playable round: board, palette, feedback, hint, reveal.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Feedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';

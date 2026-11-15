@@ -14,6 +14,7 @@ import '../authentication/lock_controller.dart';
 import '../core/rate_limiter.dart';
 import '../cryptography/olm_service.dart';
 import '../networking/pairing_service.dart';
+import '../recovery/recovery_service.dart';
 import '../security/native_bridge.dart';
 import '../security/secure_store.dart';
 import '../storage/prefs.dart';
@@ -241,4 +242,9 @@ final lockControllerProvider = NotifierProvider<LockController, LockState>(
 /// play screen can read and invalidate the same provider.
 final levelStarsProvider = FutureProvider.family<int, int>(
   (ref, difficultyId) => ref.watch(prefsProvider).bestStars(difficultyId),
+);
+
+/// Stateless recovery package service. No message history is persisted.
+final recoveryServiceProvider = Provider<RecoveryService>(
+  (ref) => RecoveryService(),
 );
