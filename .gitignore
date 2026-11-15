@@ -67,3 +67,6 @@ artifacts/
 *.p8
 *.asc
 *.gpg
+
+# Android SDK/Flutter machine-specific paths
+**/local.properties

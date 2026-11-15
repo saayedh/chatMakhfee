@@ -387,6 +387,15 @@ export class PairRoom {
       return;
     }
 
+    // Signed hellos must carry Olm bootstrap keys. Keep an explicit runtime
+    // guard because TypeScript does not narrow this nested union property.
+    const olm = hello.olm;
+    if (!olm) {
+      ws.send(encodeFrame({ v: 1, t: 'err', code: 'unauthorized', detail: 'signed hello is missing Olm bootstrap keys' }));
+      ws.close(4003, 'unauthorized');
+      return;
+    }
+
     const device = this.meta.deviceFor(hello.pairId, hello.role);
     if (!device || device.deviceId !== hello.deviceId || this.meta.isRevoked(hello.pairId, hello.deviceId)) {
       ws.send(encodeFrame({ v: 1, t: 'err', code: 'unauthorized', detail: 'device is not authorised' }));
@@ -396,7 +405,7 @@ export class PairRoom {
 
     // The registered Curve25519 identity is long-lived; only the signed
     // one-time pre-key may rotate per session. Reject identity substitution.
-    if (!device.olmKey || hello.olm.identityKey !== device.olmKey) {
+    if (!device.olmKey || olm.identityKey !== device.olmKey) {
       ws.send(encodeFrame({ v: 1, t: 'err', code: 'unauthorized', detail: 'Olm identity key does not match the registered device identity' }));
       ws.close(4003, 'unauthorized');
       return;
@@ -409,7 +418,7 @@ export class PairRoom {
       deviceId: hello.deviceId,
       role: hello.role,
       auth: hello.auth,
-      olm: hello.olm,
+      olm,
       now,
     });
     if (!verified.ok) {
@@ -429,7 +438,7 @@ export class PairRoom {
       role: hello.role,
       deviceId: hello.deviceId,
       socket: ws as unknown as { send(data: string): void; close(code?: number, reason?: string): void },
-      olm: hello.olm,
+      olm,
     });
     ws.serializeAttachment({
       kind: 'authed',
@@ -439,7 +448,7 @@ export class PairRoom {
       sessionId,
       lastSeen: now,
       // Preserve only the public session bootstrap keys across hibernation.
-      olm: hello.olm,
+      olm,
     } satisfies SocketAttachment);
     ws.send(encodeFrame(welcome));
     void this.ensureAlarm();

@@ -51,6 +51,12 @@ test('accepts a token hello', () => {
   assert.equal(result.ok, true);
 });
 
+test('rejects a signed hello without Olm bootstrap keys', () => {
+  const result = parseClientFrame(hello({ olm: undefined }));
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.detail, /signed hello requires authenticated Olm bootstrap keys/);
+});
+
 test('rejects malformed hellos', () => {
   const cases: Array<[string, RegExp]> = [
     [hello({ proto: 'sp2' }), /protocol id/],

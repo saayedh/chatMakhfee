@@ -400,6 +400,16 @@ export async function createLocalServer(
       return false;
     }
 
+    // Signed hellos must carry Olm bootstrap keys. The protocol parser enforces
+    // this at runtime, but TypeScript cannot narrow the nested union member
+    // through `hello.auth.kind`, so assert the invariant explicitly here too.
+    const olm = hello.olm;
+    if (!olm) {
+      sendJson(socket, { v: 1, t: 'err', code: 'unauthorized', detail: 'signed hello is missing Olm bootstrap keys' });
+      socket.close(4003, 'unauthorized');
+      return false;
+    }
+
     // The store keeps the key as raw bytes; no decoding happens here.
     const publicKey = device.publicKey;
     if (!(publicKey instanceof Uint8Array) || publicKey.length !== 32) {
@@ -411,7 +421,7 @@ export async function createLocalServer(
     // identity must remain stable across sessions; only the one-time pre-key
     // is expected to rotate. This prevents a valid device signature from
     // silently substituting a different long-term Olm identity.
-    if (!device.olmKey || hello.olm.identityKey !== device.olmKey) {
+    if (!device.olmKey || olm.identityKey !== device.olmKey) {
       sendJson(socket, { v: 1, t: 'err', code: 'unauthorized', detail: 'Olm identity key does not match the registered device identity' });
       socket.close(4003, 'unauthorized');
       return false;
@@ -423,7 +433,7 @@ export async function createLocalServer(
       deviceId: hello.deviceId,
       role: hello.role,
       auth: hello.auth,
-      olm: hello.olm,
+      olm,
       now: Date.now(),
     });
     if (!verified.ok) {
@@ -451,7 +461,7 @@ export async function createLocalServer(
       role: hello.role,
       deviceId: hello.deviceId,
       socket: socket as unknown as SocketLike,
-      olm: hello.olm,
+      olm,
     });
     sendJson(socket, welcome);
     return true;

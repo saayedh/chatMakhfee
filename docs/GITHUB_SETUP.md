@@ -1,179 +1,109 @@
-# GitHub private repository and Android CI/CD
+# GitHub Actions: build and download the Android APK
 
-This project includes GitHub Actions workflows and Windows helper scripts. The
-workflow can build a **debug APK** after a push to `main`, and can build a
-**signed release APK** when a version tag such as `v1.0.0` is pushed.
+The only responsibility of GitHub Actions in this project is to build the Android APK and upload it as a downloadable workflow artifact.
 
-A workflow file in a ZIP does not create a GitHub repository or run by itself.
-The owner must authenticate GitHub CLI and push the source to a private repo.
+**Repository:** https://github.com/saayedh/chatMakhfee  
+**Workflow:** `.github/workflows/android-apk.yml`  
+**Artifact:** `SecretPlay-Android-APK`
 
-## 1. Install prerequisites on Windows
+GitHub Actions does not deploy Cloudflare Workers, create Durable Objects, configure Cloudflare secrets, start the laptop server, deploy TURN, or publish GitHub Releases. Those tasks remain manual and are performed from your laptop using the project's local scripts and documentation.
 
-Install:
+## 1. What runs on GitHub
 
-- Git for Windows
-- GitHub CLI (`gh`): https://cli.github.com/
-- PowerShell 5.1 or PowerShell 7
-- JDK 17 or newer (for upload-keystore setup and local Android builds)
-- Flutter 3.38.0 or the exact version pinned in `.github/workflows/android-apk.yml`
-- Android SDK 36
-- Rust stable and the Android targets described in `ANDROID_BUILD.md`
+The workflow runs only for:
 
-Close and reopen the terminal after installation. Verify:
+- a push to the `main` branch;
+- a manual `workflow_dispatch` run from the Actions tab.
 
-```powershell
-git --version
-gh --version
-java -version
-flutter --version
-cargo --version
-```
+The single job performs only the steps required to produce an Android debug APK:
 
-## 2. Authenticate using the browser
+1. check out the repository;
+2. install Java 17 and the Android SDK packages used by this project;
+3. install Flutter 3.38.0;
+4. install Rust and Android compilation targets needed by `flutter_vodozemac`;
+5. resolve Flutter dependencies;
+6. generate the Gradle wrapper from the checksum-pinned Gradle distribution;
+7. run `flutter build apk --debug`;
+8. upload `SecretPlay-Android.apk` as the `SecretPlay-Android-APK` artifact.
 
-Run:
+There are no backend test jobs, TypeScript checks, Wrangler commands, Cloudflare deployments, signing secrets, tag-based releases, or GitHub Release creation in the workflow.
+
+## 2. Push source to the configured private repository
+
+Install Git for Windows and GitHub CLI (`gh`), then authenticate:
 
 ```powershell
 gh auth login --hostname github.com --git-protocol https --web
 gh auth status
 ```
 
-Do not paste a personal access token into source code, a BAT file, chat, or a
-committed `.env` file. The GitHub CLI manages its own authentication.
-
-## 3. Create or select a private repository and push
-
-From the extracted project, run:
+From the extracted project folder, run:
 
 ```bat
 scripts\github-push.bat
 ```
 
-Choose either a new private repository or an existing GitHub repository. The
-script refuses to push to a repository whose visibility is not `PRIVATE`. It
-stages files, scans staged content for common credentials and private-key
-markers, shows the staged summary, and asks before committing and pushing.
+The helper is configured for `saayedh/chatMakhfee`. If no `origin` exists, it adds:
 
-Never bypass a secret-scan warning without examining the named file. Remove
-credentials from the repository history as well as the working tree if any
-secret was previously committed; rotating the exposed credential may also be
-necessary.
+```text
+https://github.com/saayedh/chatMakhfee.git
+```
 
-After a successful push to `main`, open the Actions page printed by the script.
-The workflow runs backend checks, Flutter checks, and a debug APK build. The
-workflow's green status is the authoritative indication that the CI job passed.
+It refuses to push to a different or public repository, scans staged files for common secret material, shows the staged summary, configures a repository-local Git author identity if needed, and asks before committing and pushing to `main`.
 
-## 4. Download the latest successful debug APK
+Repository URL: https://github.com/saayedh/chatMakhfee
+Actions page: https://github.com/saayedh/chatMakhfee/actions
 
-Run:
+## 3. Download the APK from GitHub
+
+After a successful run, download it from the website:
+
+1. Open the repository's **Actions** tab.
+2. Open the successful **Build SecretPlay Android APK** run.
+3. Find the **Artifacts** section at the bottom.
+4. Download `SecretPlay-Android-APK`.
+5. Extract the artifact ZIP; it contains `SecretPlay-Android.apk`.
+
+Or run this helper from the project folder:
 
 ```bat
 scripts\github-build-download.bat
 ```
 
-To wait until a successful run appears:
+To wait for a successful run:
 
-```bat
-scripts\github-build-download.bat --wait
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\github-build-download.ps1 -Wait
 ```
 
-The helper downloads the `SecretPlay-Android-Debug-APK` artifact from the latest
-successful `android-apk.yml` run on `main`, checks its SHA-256 digest against
-`SHA256SUMS.txt`, and places the APK under `artifacts\github-debug\`.
+The helper downloads the artifact from the configured repository, checks that an APK exists and is non-empty, and copies it to:
 
-A debug APK is for testing. It is not the signed production release.
-
-## 5. Create the Android upload key and configure GitHub Secrets
-
-Run:
-
-```bat
-scripts\setup-android-signing.bat
+```text
+artifacts\github-apk\SecretPlay-Android.apk
 ```
 
-The helper creates a JKS upload keystore outside the project, under:
+## 4. Important APK limitation
 
-`%USERPROFILE%\.secretplay\signing\secretplay-upload.jks`
+The workflow intentionally builds a **debug APK** because no release-signing keystore is stored in the repository or GitHub Actions. The APK can be installed for testing, but it is not a production-signed release. A new GitHub-hosted runner can generate a different debug certificate, so Android may require uninstalling the previous debug build before installing a later build. Back up any local test data first; the app's session-only design should not retain chat history.
 
-It then configures these repository Actions Secrets through GitHub CLI:
+## 5. Tasks that stay on your laptop
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-The GitHub repository must be private. The script never commits or copies the
-keystore into the repository. Back up the JKS file and its passwords offline in
-at least one secure location. Loss of the upload key can interrupt future APK
-updates; do not delete it after configuring GitHub.
-
-Secrets are only sent to GitHub CLI's standard input. The script does not print
-their values. Repository secret names can be listed, but GitHub does not reveal
-stored secret values.
-
-## 6. Publish a signed version
-
-After all required secrets have been configured and `main` has a green CI run,
-run:
+These operations are deliberately outside GitHub Actions:
 
 ```bat
-scripts\github-release.bat
-```
-
-Enter a semantic version such as `1.0.0`. The helper verifies a clean working
-tree, checks that the release tag does not already exist, verifies that the
-four signing secrets are configured, runs a local source scan, then creates and
-pushes an annotated tag such as `v1.0.0`.
-
-The tag triggers the release job. The job builds a release APK, verifies its
-signature with `apksigner`, computes SHA-256, and attaches the APK, checksum,
-and build metadata to a GitHub Release. The workflow will fail rather than
-silently use Android's public debug key when signing secrets are absent.
-
-Do not force-push a release tag or replace an existing tag. Increment the
-version instead.
-
-## 7. Workflow behavior
-
-| Event | Checks | APK result |
-|---|---|---|
-| Push to `main` | Backend, typecheck, Wrangler dry-run, Flutter analyze/test | Debug APK artifact |
-| Pull request to `main` | Same validation and debug build | Debug artifact for the run |
-| Manual `workflow_dispatch` | Same validation and debug build | Debug APK artifact |
-| Push tag `v*` | Validation, debug build, signed release build | Signed APK + GitHub Release |
-
-The workflow does not deploy Cloudflare. Cloudflare deployment remains a separate
-explicit action using `scripts\deploy-cloudflare.bat`.
-
-## 8. Local build and package scripts
-
-```bat
-scripts\build-android.bat
+scripts\deploy-cloudflare.bat
+scripts\install-local.bat
+scripts\run-local.bat
+scripts\stop-local.bat
 scripts\package-project.bat
 ```
 
-`package-project.bat` creates a source ZIP outside the repository and a SHA-256
-file. By default, build outputs and downloaded APKs are excluded. To include an
-APK that was downloaded by `github-build-download.bat`, use:
+Cloudflare deployment, Worker secrets, Durable Object configuration, local laptop relay setup, Windows Firewall, local TURN and other backend operations remain under your control on your own machine.
 
-```bat
-scripts\package-project.bat --include-apk
-```
+## 6. Troubleshooting
 
-The packaging script excludes `.git`, dependency caches, `.env` files, signing
-keys, certificates/private keys, Android `local.properties`, and local recovery
-secrets. Review the generated ZIP manifest and checksum after packaging.
-
-## 9. Security and CI caveats
-
-- A successful CI build means the selected automated checks passed; it is not a
-  cryptographic or mobile application security audit.
-- CI cannot replace testing on two physical Android devices.
-- Debug APKs are not production-signed releases.
-- GitHub-hosted runners require Internet access to download Flutter, Android,
-  Rust, Node, Gradle and package dependencies.
-- Do not expose signing secrets to pull requests from forks. The workflow only
-  makes signing secrets available in the tag-triggered release job.
-- Protect the `main` branch and require successful checks before merging changes.
-- Review workflow changes carefully because a workflow can access repository
-  Actions Secrets when explicitly provided.
+- If no run starts, confirm the push went to `main` and that Actions are enabled for the repository.
+- If the workflow fails during Flutter dependency resolution, inspect the Flutter/pub error in the Actions log.
+- If Rust compilation fails, inspect the `flutter_vodozemac`/Cargokit output and Android NDK setup.
+- If Gradle fails, inspect wrapper generation, Java 17, Android Gradle Plugin compatibility and the pinned distribution checksum.
+- A green APK workflow means the APK build completed. It does not mean Cloudflare is deployed, the laptop server is configured, WebRTC has been tested on two phones, or the app has passed an independent security audit.

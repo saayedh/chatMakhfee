@@ -11,7 +11,7 @@ requires a platform-specific implementation or device testing.
 - Previous remediation adds bilateral verification gating, signed device
   metadata, separate Cloud/Local pair credentials, message-session expiry,
   in-memory-only relay behavior, and WebRTC ICE candidate buffering.
-- Added GitHub Actions backend checks and Android debug APK workflow.
+- Configured GitHub Actions for Android APK generation only; backend checks and Cloudflare operations remain laptop-only.
 - Added signed tag-release workflow requiring four Android signing secrets.
 - Added Windows Gradle-wrapper bootstrap, GitHub push/download/release, Android
   signing setup and source ZIP packaging helpers.

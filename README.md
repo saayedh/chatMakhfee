@@ -21,13 +21,13 @@ android_app/      Flutter app (game shell + private shell), Kotlin host code
 cloudflare/       Worker + PairRoom Durable Object relay (free-plan only)
 local_server/     Laptop relay: Fastify + ws, in-memory, offline-capable
 crypto_core/      Shared TypeScript protocol: frames, auth, pairing, recovery
-scripts/          Windows BAT + PowerShell automation (build, GitHub, package, run/deploy)
+scripts/          Windows BAT + PowerShell automation (APK download, Git push, package, local run/deploy)
 docs/             Architecture, threat model, crypto, deployment, tests
 ```
 
 ## Quick start
 
-### Tests and type checks (no cloud account, no phone)
+### Optional backend tests and type checks (run locally on your laptop; not part of GitHub Actions)
 
 ```bat
 cd crypto_core  && npm ci && npm test && npm run typecheck
@@ -69,31 +69,29 @@ the tests, bundles with `--dry-run`, then deploys. Paste the printed
 
 ### Android APK and GitHub Actions
 
-Local debug build:
+The configured GitHub repository is:
 
-```bat
-scripts\build-android.bat
-```
+https://github.com/saayedh/chatMakhfee
 
-GitHub CI/CD setup and automation:
+GitHub Actions has exactly one job: build the Android debug APK and upload it as the `SecretPlay-Android-APK` artifact. It runs after a push to `main` or a manual `workflow_dispatch` request. It does not run backend tests, deploy Cloudflare, configure secrets, start the laptop server, or publish GitHub Releases.
+
+Push source from your laptop:
 
 ```bat
 scripts\github-push.bat
-scripts\github-build-download.bat
-scripts\setup-android-signing.bat
-scripts\github-release.bat
-scripts\package-project.bat
 ```
 
-The workflow `.github/workflows/android-apk.yml` builds a debug APK on pushes to
-`main`, pull requests and manual dispatch. A signed release is built only when
-a `v*` tag is pushed and all four Android signing Actions Secrets are configured.
-The push helper refuses non-private repositories and scans staged files for
-common secrets. See [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) and
-[docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md).
+Download the latest successful APK artifact:
 
-Prerequisites for local builds: Flutter 3.38.0, Android SDK 36, JDK 17 and Rust
-with Android targets. GitHub-hosted CI installs the pinned toolchain itself.
+```bat
+scripts\github-build-download.bat
+```
+
+The downloaded file is saved to `artifacts\github-apk\SecretPlay-Android.apk`.
+
+The workflow builds a debug APK for testing. It does not use release-signing secrets. GitHub-hosted runners may generate different debug signing certificates between runs, so Android can require uninstalling an older debug build before installing a newer one.
+
+All Cloudflare deployment, local server operation, TURN configuration, and other backend administration remain manual tasks on your laptop using the scripts and guides in this repository. See [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).
 
 ---
 
@@ -127,7 +125,7 @@ with Android targets. GitHub-hosted CI installs the pinned toolchain itself.
 | [docs/LOCAL_MODE.md](docs/LOCAL_MODE.md) | Hotspot setup, QR pairing, LAN calls, firewall |
 | [docs/CLOUDFLARE_DEPLOYMENT.md](docs/CLOUDFLARE_DEPLOYMENT.md) | Deploy, free-plan limits, TURN, cost control |
 | [docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md) | Toolchain, build, install, signing, troubleshooting |
-| [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Private repo setup, CI/CD, APK download and signed releases |
+| [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Push to the configured private repo and download the APK-only workflow artifact |
 | [docs/RECOVERY.md](docs/RECOVERY.md) | Recovery package format, new-device approval |
 | [docs/SECURITY_TESTS.md](docs/SECURITY_TESTS.md) | Automated suites + manual device plan |
 | [docs/FINAL_BUILD_REPORT.md](docs/FINAL_BUILD_REPORT.md) | Build/CI deliverables, checks performed and remaining limitations |

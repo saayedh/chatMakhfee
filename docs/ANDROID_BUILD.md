@@ -1,12 +1,11 @@
-# Android build and signing
+# Android build
 
-## Toolchain pinned by CI
+## Toolchain used by the APK workflow
 
 | Component | Version / requirement | Why |
 |---|---|---|
 | Flutter | 3.38.0 | Project Dart SDK constraint and pinned CI toolchain |
 | Dart | 3.10.x | Required by `pubspec.yaml` |
-| Node.js | 22.18.0 | Minimum runtime for TypeScript tests and tooling |
 | JDK | 17 | Compatible Android Gradle / Kotlin toolchain |
 | Android SDK | Platform 36, Build Tools 36.0.0 | Project `compileSdk` / `targetSdk` |
 | Android NDK | 28.2.13676358 (CI) | Native Rust/vodozemac build |
@@ -62,37 +61,11 @@ Flutter analyzer and tests, then builds:
 A debug APK is signed with Android's debug key and is only for development.
 Do not distribute it as a production release.
 
-## Signed release build
+## GitHub APK build
 
-The release build intentionally refuses to fall back to the debug signing key.
-Set these environment variables locally, or configure the matching GitHub
-Actions Secrets:
+GitHub Actions builds only one debug APK and uploads it as the `SecretPlay-Android-APK` artifact. It runs on pushes to `main` and manual dispatch. The workflow does not run Node/TypeScript backend checks, Wrangler, Cloudflare deployment, local server tasks, signing, or GitHub Release publishing. See [GITHUB_SETUP.md](GITHUB_SETUP.md).
 
-- `SECRETPLAY_UPLOAD_KEYSTORE`
-- `SECRETPLAY_STORE_PASSWORD`
-- `SECRETPLAY_KEY_ALIAS`
-- `SECRETPLAY_KEY_PASSWORD`
-
-The keystore must be a JKS file. Do not commit the keystore or `key.properties`.
-For GitHub secret configuration, use `scripts\setup-android-signing.bat` and
-follow `GITHUB_SETUP.md`.
-
-When all values are set, run from `android_app`:
-
-```bat
-flutter build apk --release
-```
-
-The result is:
-
-`android_app\build\app\outputs\flutter-apk\app-release.apk`
-
-## GitHub Actions
-
-`.github/workflows/android-apk.yml` builds a debug APK on pushes to `main`, pull
-requests to `main`, and manual runs. Pushing a tag such as `v1.0.0` triggers the
-signed release workflow, provided all four Android signing secrets are set.
-See [GITHUB_SETUP.md](GITHUB_SETUP.md).
+The APK is debug-signed and suitable for testing. Runner-generated debug certificates can differ between builds, so an older installation may need to be uninstalled before installing a new APK.
 
 ## What remains unverified in this delivery environment
 
