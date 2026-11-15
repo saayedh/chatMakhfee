@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Local mode talks to a laptop over ws:// on a private LAN address, which cannot
+  be expressed as a domain rule. Cleartext is therefore permitted, and the app
+  documents that local-mode traffic is protected by Olm at the application layer
+  (the relay only ever sees sealed envelopes).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,29 @@
+{
+  "name": "secretplay-local-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SecretPlay laptop relay for offline / LAN mode. In-memory pairing, session management and WebRTC signalling; never stores messages.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/main.ts",
+    "dev": "node --env-file-if-exists=.env --watch src/main.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "fastify": "5.12.8",
+    "qrcode-terminal": "0.12.0",
+    "ws": "8.23.0"
+  },
+  "devDependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@types/node": "26.6.6",
+    "@types/qrcode-terminal": "0.12.2",
+    "@types/ws": "8.18.2",
+    "typescript": "7.0.2"
+  }
+}

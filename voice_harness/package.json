@@ -1,0 +1,17 @@
+{
+  "name": "secretplay-voice-harness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Executable WebRTC call tests for SecretPlay: ICE, DTLS-SRTP, media flow and sp1 signalling, driven by a real WebRTC implementation in Node.",
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "test:cloud": "node --test tests/relay-call.test.ts"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "werift": "0.27.0"
+  }
+}

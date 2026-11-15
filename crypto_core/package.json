@@ -1,0 +1,27 @@
+{
+  "name": "@secretplay/crypto-core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SecretPlay shared wire protocol, device authentication, session tokens, pairing and recovery-envelope primitives. Used by both the Cloudflare Worker and the local laptop server.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

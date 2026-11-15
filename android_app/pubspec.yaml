@@ -1,0 +1,51 @@
+name: secretplay
+description: SecretPlay — a private, two-device messenger with a small game in front of it.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.38.0"
+
+# All versions are pinned exactly and were checked on pub.dev when this project
+# was written. If `flutter pub get` reports a resolution conflict, update the
+# pin deliberately rather than allowing a floating range.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management.
+  flutter_riverpod: 3.5.0
+
+  # End-to-end encryption: Rust vodozemac (Olm) with Flutter bindings.
+  # Requires a Rust toolchain on the build machine (cargokit builds it).
+  vodozemac: 0.9.0
+  flutter_vodozemac: 0.9.0
+
+  # Voice calls.
+  flutter_webrtc: 1.6.3
+
+  # Key storage in the Android Keystore.
+  flutter_secure_storage: 11.2.0
+
+  # Biometric unlock.
+  local_auth: 3.0.2
+
+  # QR pairing.
+  mobile_scanner: 7.5.0
+  qr_flutter: 4.1.0
+
+  # Argon2id + XChaCha20-Poly1305 for the recovery package and passphrase checks.
+  cryptography: 2.9.0
+  cryptography_flutter: 2.3.4
+
+  # SHA-256 / HMAC for device-id derivation and session-token handling.
+  crypto: 3.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true
