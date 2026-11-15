@@ -16,10 +16,15 @@ concurrency:
 jobs:
   build-apk:
     name: Build Android APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 75
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     permissions:
       contents: read
+
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: short
 
     steps:
       - name: Checkout source
@@ -56,41 +61,36 @@ jobs:
           cache: true
 
       # flutter_vodozemac compiles native Rust code for Android through cargokit.
+      # Caching is disabled because this repository has no root Cargo.toml.
       - name: Set up Rust Android targets
         uses: actions-rust-lang/setup-rust-toolchain@v1.16.1
         with:
           toolchain: stable
           target: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
-          # This repo has no root Cargo.toml; disable rust-cache so it does not run
-          # cargo metadata in the repository root. Cargokit builds its crate in the pub cache.
           cache: false
-          # Avoid injecting RUSTFLAGS=-D warnings into third-party Rust crates.
           rustflags: ''
 
-      - name: Verify stable Flutter and Dart SDK
+      - name: Verify Flutter and Dart toolchain
         shell: bash
         run: |
           set -euo pipefail
           flutter --version
           DART_VERSION_LINE="$(dart --version 2>&1)"
           echo "$DART_VERSION_LINE"
-          if ! echo "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.13\.7 \(stable\)' || \
-             echo "$DART_VERSION_LINE" | grep -Eiq '(beta|dev|alpha|pre)'; then
-            echo "Expected stable Dart 3.13.7 from Flutter 3.47.9; refusing to resolve dependencies with a pre-release or mismatched SDK." >&2
+          if ! printf '%s\n' "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.13\.7 \(stable\)'; then
+            echo "Expected Dart 3.13.7 stable from Flutter 3.47.9." >&2
             exit 1
           fi
 
       - name: Resolve Flutter dependencies
         working-directory: android_app
-        run: flutter pub get
-
-      # The source archive contains the pinned wrapper properties, while the wrapper
-      # launcher/JAR are generated on the runner from the checksum-verified Gradle distribution.
-      - name: Generate Gradle wrapper
         shell: bash
         run: |
           set -euo pipefail
-          GRADLE_VERSION="8.14.3"
-          GRADLE_SHA256="bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531"
-          GRADLE_ZIP="$RUNNER_TEMP/gradle-${GRADLE_VERSION}-bin.zip"
-          GRADLE_HOME="$RUNNER_TEMP/gradle-${GRADLE_VERSION}"
+          flutter pub get
+
+      # The repository contains gradle-wrapper.properties but intentionally does not
+      # commit the wrapper JAR or launcher. Generate them on the runner using a
+      # checksum-verified Gradle distribution. Project settings use AGP 8.11.1 and
+      # Kotlin Gradle Plugin 2.2.20, matching the Flutter 3.47 minimum toolchain.
+      - name: Generate Gradle wrapper
