@@ -1,0 +1,23 @@
+{
+  "name": "secretplay-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SecretPlay Cloudflare Worker + SQLite Durable Object relay. Relays ciphertext only; never stores messages.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "wrangler deploy --dry-run --outdir=.wrangler/dry-run"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261114.1",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "wrangler": "4.162.0"
+  }
+}

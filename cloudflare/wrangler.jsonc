@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "secretplay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // Workers Free plan: SQLite-backed Durable Objects only. No KV, no R2,
+  // no Queues, no Containers, no paid add-ons.
+  "observability": { "enabled": false },
+  "vars": {
+    "PROTOCOL_ID": "sp1",
+    "HEARTBEAT_MS": "5000",
+    "SESSION_TIMEOUT_MS": "20000",
+    "RATE_PER_MINUTE": "240",
+    // TURN costs $0.05/GB outbound. Off unless the operator opts in AND sets
+    // the TURN_KEY_ID / TURN_KEY_API_TOKEN secrets (see docs/CLOUDFLARE_DEPLOYMENT.md).
+    "TURN_ENABLED": "false"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "PAIR_ROOM", "class_name": "PairRoom" }]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PairRoom"]
+    }
+  ]
+}

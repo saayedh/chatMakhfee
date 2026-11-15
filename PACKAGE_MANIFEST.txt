@@ -1,0 +1,7 @@
+SecretPlay source package
+Created UTC: 2026-11-14
+Files included (excluding this manifest): 150
+
+This is a source/CI package. No APK was built or included in this authoring environment.
+Excluded: Git metadata, caches, build outputs, environment secrets, local settings, signing keys, certificates/private keys, recovery secrets, and downloaded artifacts.
+The Gradle wrapper bootstrapper and pinned distribution properties are included; wrapper launcher files/JAR are generated on a host with Gradle installed.

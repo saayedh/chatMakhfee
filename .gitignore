@@ -1,0 +1,69 @@
+# --- Node / TypeScript ---------------------------------------------------
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.wrangler/
+.dev.vars
+
+# --- Flutter / Dart ------------------------------------------------------
+android_app/.dart_tool/
+android_app/.flutter-plugins
+android_app/.flutter-plugins-dependencies
+android_app/build/
+android_app/.packages
+android_app/pubspec.lock.bak
+android_app/ios/
+android_app/web/
+android_app/windows/
+android_app/linux/
+android_app/macos/
+*.g.dart
+*.freezed.dart
+
+# --- Android signing material (NEVER commit) -----------------------------
+android_app/android/key.properties
+android_app/android/app/upload-keystore.jks
+android_app/android/app/*.jks
+android_app/android/app/*.keystore
+*.jks
+*.p12
+*.pfx
+*.p7b
+*.p7c
+*.pem
+*.key
+*.keystore
+
+# --- Local relay runtime artifacts ---------------------------------------
+local_server/.secretplay.pid
+
+# --- Secrets -------------------------------------------------------------
+# Captured runtime data, recovery packages, pairing QR dumps, TURN keys.
+secrets/
+*.secret
+recovery-*.json
+turn-*.json
+
+# --- OS / editors --------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Generated artifacts and local credentials ----------------------------
+artifacts/
+*.mobileprovision
+*.provisionprofile
+*.cer.tmp
+*.crt.tmp
+
+# Local npm credentials and additional signing material
+.npmrc
+*.p8
+*.asc
+*.gpg

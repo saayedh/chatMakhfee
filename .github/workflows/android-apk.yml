@@ -1,0 +1,399 @@
+name: SecretPlay Android CI and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: secretplay-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-checks:
+    name: Backend checks — ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: crypto_core
+            directory: crypto_core
+            needs_shared: false
+            has_typecheck: true
+            has_wrangler_check: false
+          - name: local_server
+            directory: local_server
+            needs_shared: true
+            has_typecheck: true
+            has_wrangler_check: false
+          - name: cloudflare
+            directory: cloudflare
+            needs_shared: true
+            has_typecheck: true
+            has_wrangler_check: true
+          - name: voice_harness
+            directory: voice_harness
+            needs_shared: false
+            has_typecheck: false
+            has_wrangler_check: false
+    steps:
+      # Versioned immutable release tag; see docs/GITHUB_SETUP.md.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22.18.0'
+
+      - name: Enforce minimum Node.js version
+        shell: bash
+        run: |
+          node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 18)) { console.error(`Node >=22.18.0 required; found ${process.versions.node}`); process.exit(1); }'
+
+      - name: Install shared crypto dependencies
+        if: matrix.needs_shared
+        working-directory: crypto_core
+        run: npm ci --no-audit --no-fund
+
+      - name: Install package dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        working-directory: ${{ matrix.directory }}
+        run: npm test
+
+      - name: TypeScript typecheck
+        if: matrix.has_typecheck
+        working-directory: ${{ matrix.directory }}
+        run: npm run typecheck
+
+      - name: Cloudflare Workers dry run
+        if: matrix.has_wrangler_check
+        working-directory: cloudflare
+        run: npm run check
+
+  android-debug:
+    name: Android validation and debug APK
+    runs-on: ubuntu-latest
+    needs: backend-checks
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: android_app/android/**/*.gradle*
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Install Android SDK 36 and NDK r28c
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358"
+
+      - name: Setup Flutter 3.38.0 / Dart 3.10
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.38.0'
+          cache: true
+
+      - name: Setup Rust and Android targets
+        uses: actions-rust-lang/setup-rust-toolchain@v1.16.1 # Signed upstream release
+        with:
+          toolchain: stable
+          target: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          cache: true
+
+      - name: Setup Gradle 8.14.3
+        uses: gradle/actions/setup-gradle@v6.4.1 # Immutable upstream release
+        with:
+          gradle-version: '8.14.3'
+          cache-provider: basic
+          # The wrapper launchers are generated in the next step on the clean runner.
+          validate-wrappers: false
+
+      - name: Resolve Flutter packages
+        working-directory: android_app
+        run: flutter pub get
+
+      - name: Generate and checksum Gradle Wrapper
+        shell: bash
+        run: |
+          mkdir -p android_app/android/gradle/wrapper
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > android_app/android/local.properties
+          (
+            cd android_app/android
+            gradle wrapper --gradle-version 8.14.3 --distribution-type bin
+          )
+          chmod +x android_app/android/gradlew
+          # SHA-256 from Gradle's independently published release-checksum registry.
+          CHECKSUM="bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531"
+          PROPS=android_app/android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^distributionSha256Sum=' "$PROPS"; then
+            sed -i "s/^distributionSha256Sum=.*/distributionSha256Sum=$CHECKSUM/" "$PROPS"
+          else
+            printf '\ndistributionSha256Sum=%s\n' "$CHECKSUM" >> "$PROPS"
+          fi
+          cd android_app/android
+          ./gradlew --version
+
+      - name: Flutter analyze
+        working-directory: android_app
+        run: flutter analyze
+
+      - name: Flutter tests
+        working-directory: android_app
+        run: flutter test
+
+      - name: Build debug APK
+        working-directory: android_app
+        run: flutter build apk --debug
+
+      - name: Verify APK and prepare metadata
+        shell: bash
+        run: |
+          APK="android_app/build/app/outputs/flutter-apk/app-debug.apk"
+          test -s "$APK"
+          mkdir -p artifacts/debug
+          cp "$APK" artifacts/debug/SecretPlay-Android-Debug.apk
+          sha256sum artifacts/debug/SecretPlay-Android-Debug.apk > artifacts/debug/SHA256SUMS.txt
+          cat > artifacts/debug/build-metadata.json <<EOF
+          {
+            "project": "SecretPlay",
+            "variant": "debug",
+            "commit": "${GITHUB_SHA}",
+            "flutter": "$(flutter --version | head -n 1)",
+            "node": "$(node --version)",
+            "java": "$(java -version 2>&1 | head -n 1)",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          ls -lh artifacts/debug/SecretPlay-Android-Debug.apk
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v7.0.2 # Signed, verified upstream release; see docs/GITHUB_SETUP.md
+        with:
+          name: SecretPlay-Android-Debug-APK
+          path: artifacts/debug/*
+          if-no-files-found: error
+          retention-days: 14
+
+  android-release:
+    name: Signed Android release and GitHub Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [backend-checks, android-debug]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Checkout main for release ancestry verification
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          path: main-ref
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Ensure release tag points to code already merged into main
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(git -C main-ref rev-parse HEAD)"
+          git -C main-ref merge-base --is-ancestor "$GITHUB_SHA" "$MAIN_SHA" || {
+            echo "Refusing release: tag commit is not reachable from main." >&2
+            exit 1
+          }
+
+      - name: Setup Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: android_app/android/**/*.gradle*
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Install Android SDK 36 and NDK r28c
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358"
+
+      - name: Setup Flutter 3.38.0 / Dart 3.10
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.38.0'
+          cache: true
+
+      - name: Setup Rust and Android targets
+        uses: actions-rust-lang/setup-rust-toolchain@v1.16.1 # Signed upstream release
+        with:
+          toolchain: stable
+          target: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          cache: true
+
+      - name: Setup Gradle 8.14.3
+        uses: gradle/actions/setup-gradle@v6.4.1 # Immutable upstream release
+        with:
+          gradle-version: '8.14.3'
+          cache-provider: basic
+          # The wrapper launchers are generated in the next step on the clean runner.
+          validate-wrappers: false
+
+      - name: Verify release signing secrets
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then echo "Missing GitHub Actions secret: $name"; missing=1; fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Configure all four Android signing secrets before creating a v* tag." >&2
+            exit 1
+          fi
+
+      - name: Restore upload keystore to temporary runner storage
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          KEYSTORE_PATH="$RUNNER_TEMP/secretplay-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          echo "SECRETPLAY_UPLOAD_KEYSTORE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "KEYSTORE_TEMP_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Resolve Flutter packages
+        working-directory: android_app
+        run: flutter pub get
+
+      - name: Generate and checksum Gradle Wrapper
+        shell: bash
+        run: |
+          mkdir -p android_app/android/gradle/wrapper
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > android_app/android/local.properties
+          (
+            cd android_app/android
+            gradle wrapper --gradle-version 8.14.3 --distribution-type bin
+          )
+          chmod +x android_app/android/gradlew
+          # SHA-256 from Gradle's independently published release-checksum registry.
+          CHECKSUM="bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531"
+          PROPS=android_app/android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^distributionSha256Sum=' "$PROPS"; then
+            sed -i "s/^distributionSha256Sum=.*/distributionSha256Sum=$CHECKSUM/" "$PROPS"
+          else
+            printf '\ndistributionSha256Sum=%s\n' "$CHECKSUM" >> "$PROPS"
+          fi
+          cd android_app/android
+          ./gradlew --version
+
+      - name: Flutter analyze and tests
+        working-directory: android_app
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build signed release APK
+        working-directory: android_app
+        env:
+          SECRETPLAY_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SECRETPLAY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SECRETPLAY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release
+
+      - name: Verify signature and prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          mkdir -p artifacts/release
+          cp "$APK" "artifacts/release/SecretPlay-${GITHUB_REF_NAME}-release.apk"
+          sha256sum "artifacts/release/SecretPlay-${GITHUB_REF_NAME}-release.apk" > artifacts/release/SHA256SUMS.txt
+          cat > artifacts/release/build-metadata.json <<EOF
+          {
+            "project": "SecretPlay",
+            "variant": "release",
+            "tag": "${GITHUB_REF_NAME}",
+            "commit": "${GITHUB_SHA}",
+            "flutter": "$(flutter --version | head -n 1)",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload signed release artifact
+        uses: actions/upload-artifact@v7.0.2 # Signed, verified upstream release; see docs/GITHUB_SETUP.md
+        with:
+          name: SecretPlay-Android-${{ github.ref_name }}-Release-APK
+          path: artifacts/release/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "artifacts/release/SecretPlay-${GITHUB_REF_NAME}-release.apk" \
+            "artifacts/release/SHA256SUMS.txt" \
+            "artifacts/release/build-metadata.json" \
+            --title "SecretPlay ${GITHUB_REF_NAME}" \
+            --generate-notes
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${KEYSTORE_TEMP_PATH:-}" && -f "$KEYSTORE_TEMP_PATH" ]]; then
+            shred -u "$KEYSTORE_TEMP_PATH" 2>/dev/null || rm -f "$KEYSTORE_TEMP_PATH"
+          fi
