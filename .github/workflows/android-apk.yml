@@ -56,7 +56,7 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
-          flutter-version: '3.47.9'
+          flutter-version: '3.50.0'
           cache: true
 
       # flutter_vodozemac builds native Rust code through cargokit.
@@ -76,8 +76,8 @@ jobs:
           flutter --version
           DART_VERSION_LINE="$(dart --version 2>&1)"
           printf '%s\n' "$DART_VERSION_LINE"
-          if ! printf '%s\n' "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.13\.7 \(stable\)'; then
-            echo "Expected stable Dart 3.13.7 from Flutter 3.47.9." >&2
+          if ! printf '%s\n' "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.14\.[0-9]+ \(stable\)'; then
+            echo "Expected stable Dart 3.14.x from Flutter 3.50.0." >&2
             exit 1
           fi
 
