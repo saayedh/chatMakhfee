@@ -70,3 +70,4 @@ artifacts/
 
 # Android SDK/Flutter machine-specific paths
 **/local.properties
+/SecretPlay_*.zip
