@@ -52,7 +52,7 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
-          flutter-version: '3.50.0'
+          flutter-version: '3.47.9'
           cache: true
 
       # flutter_vodozemac compiles native Rust code for Android through cargokit.
@@ -74,9 +74,9 @@ jobs:
           flutter --version
           DART_VERSION_LINE="$(dart --version 2>&1)"
           echo "$DART_VERSION_LINE"
-          if ! echo "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.14\.[0-9]+ \(stable\)' || \
+          if ! echo "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.13\.7 \(stable\)' || \
              echo "$DART_VERSION_LINE" | grep -Eiq '(beta|dev|alpha|pre)'; then
-            echo "Expected stable Dart 3.14.x from Flutter 3.50.0; refusing to resolve dependencies with a pre-release or mismatched SDK." >&2
+            echo "Expected stable Dart 3.13.7 from Flutter 3.47.9; refusing to resolve dependencies with a pre-release or mismatched SDK." >&2
             exit 1
           fi
 
@@ -94,57 +94,3 @@ jobs:
           GRADLE_SHA256="bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531"
           GRADLE_ZIP="$RUNNER_TEMP/gradle-${GRADLE_VERSION}-bin.zip"
           GRADLE_HOME="$RUNNER_TEMP/gradle-${GRADLE_VERSION}"
-          FLUTTER_BIN="$(command -v flutter)"
-          FLUTTER_ROOT="$(dirname "$(dirname "$(readlink -f "$FLUTTER_BIN")")")"
-
-          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > android_app/android/local.properties
-
-          curl --fail --location --silent --show-error \
-            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-            --output "$GRADLE_ZIP"
-          echo "${GRADLE_SHA256}  ${GRADLE_ZIP}" | sha256sum --check --status || {
-            echo "Gradle distribution checksum verification failed." >&2
-            exit 1
-          }
-
-          unzip -q "$GRADLE_ZIP" -d "$RUNNER_TEMP"
-          test -x "$GRADLE_HOME/bin/gradle"
-          (
-            cd android_app/android
-            "$GRADLE_HOME/bin/gradle" wrapper \
-              --gradle-version "$GRADLE_VERSION" \
-              --distribution-type bin
-          )
-          chmod +x android_app/android/gradlew
-
-          WRAPPER_PROPERTIES="android_app/android/gradle/wrapper/gradle-wrapper.properties"
-          if grep -q '^distributionSha256Sum=' "$WRAPPER_PROPERTIES"; then
-            sed -i "s/^distributionSha256Sum=.*/distributionSha256Sum=${GRADLE_SHA256}/" "$WRAPPER_PROPERTIES"
-          else
-            printf '\ndistributionSha256Sum=%s\n' "$GRADLE_SHA256" >> "$WRAPPER_PROPERTIES"
-          fi
-
-      - name: Build debug APK
-        working-directory: android_app
-        run: flutter build apk --debug
-
-      - name: Prepare APK file
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE_APK="android_app/build/app/outputs/flutter-apk/app-debug.apk"
-          OUTPUT_DIR="artifacts"
-          OUTPUT_APK="${OUTPUT_DIR}/SecretPlay-Android.apk"
-          test -s "$SOURCE_APK"
-          mkdir -p "$OUTPUT_DIR"
-          cp "$SOURCE_APK" "$OUTPUT_APK"
-          echo "APK ready: $OUTPUT_APK"
-          ls -lh "$OUTPUT_APK"
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: SecretPlay-Android-APK
-          path: artifacts/SecretPlay-Android.apk
-          if-no-files-found: error
-          retention-days: 30
