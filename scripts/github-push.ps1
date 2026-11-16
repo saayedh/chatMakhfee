@@ -1,128 +1,98 @@
 [CmdletBinding()]
 param([string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot))
+
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
-$ExpectedRepoSlug = 'saayedh/chatMakhfee'
-$ExpectedRemoteUrl = 'https://github.com/saayedh/chatMakhfee.git'
+$ExpectedRepo = 'saayedh/chatMakhfee'
+$ExpectedRemote = 'https://github.com/saayedh/chatMakhfee.git'
 
-# Prevent Git/GitHub CLI from opening an interactive pager (for example less).
-# This is important when the script is launched from a Windows BAT/PowerShell console.
+function Invoke-Git([string[]]$Arguments) {
+    & git -C $ProjectRoot @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+function Invoke-Gh([string[]]$Arguments) {
+    & gh @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Install Git for Windows first.' }
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'Install GitHub CLI first: https://cli.github.com/' }
+if (-not (Test-Path (Join-Path $ProjectRoot 'android_app\pubspec.yaml'))) { throw 'Not a SecretPlay project root.' }
+if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) { throw 'Run this helper from an existing Git clone; it will not initialize a new repository.' }
+
 $env:GIT_PAGER = 'cat'
 $env:PAGER = 'cat'
 $env:GH_PAGER = 'cat'
 
-function Invoke-Git([string[]]$Arguments) {
-    & git --no-pager -C $ProjectRoot @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
-}
-function Invoke-Gh([string[]]$Arguments) {
-    & gh @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "gh $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
-}
-
-if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Install Git for Windows first.' }
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'Install GitHub CLI (gh) first: https://cli.github.com/' }
-if (-not (Test-Path (Join-Path $ProjectRoot 'android_app\pubspec.yaml'))) { throw 'This folder does not look like the SecretPlay project root.' }
-if (-not (Test-Path (Join-Path $ProjectRoot '.gitignore'))) { throw '.gitignore is missing; refusing to initialize a repository.' }
-
-Write-Host 'Checking GitHub CLI authentication...'
 & gh auth status 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host 'Starting browser-based GitHub login. No token will be written to source files.'
+    Write-Host 'Starting browser-based GitHub login.'
     Invoke-Gh @('auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web')
 }
 
-if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) {
-    Invoke-Git @('init')
-}
+$repoJson = & gh repo view $ExpectedRepo --json nameWithOwner 2>$null
+if ($LASTEXITCODE -ne 0) { throw "Cannot access $ExpectedRepo with the authenticated GitHub account." }
+$repoInfo = ($repoJson | Out-String | ConvertFrom-Json)
+if ($repoInfo.nameWithOwner -ne $ExpectedRepo) { throw "Unexpected repository: $($repoInfo.nameWithOwner)" }
+
 $branch = (& git -C $ProjectRoot branch --show-current).Trim()
-if ($LASTEXITCODE -ne 0) { throw 'Could not determine the current Git branch.' }
-if ([string]::IsNullOrWhiteSpace($branch)) {
-    Invoke-Git @('switch', '-c', 'main')
-} elseif ($branch -ne 'main') {
-    $choice = Read-Host "Current branch is '$branch'. Rename it to 'main'? (Y/N)"
-    if ($choice -notmatch '^(?i)y(es)?$') { throw 'Push cancelled; the current branch was not changed.' }
-    Invoke-Git @('branch', '-M', 'main')
+if ($LASTEXITCODE -ne 0 -or $branch -ne 'main') {
+    throw "Switch to the existing main branch before running this helper. Current branch: '$branch'."
 }
 
-# This project is configured for one existing private repository.
-# Do not offer to create a different repository or push to an accidental remote.
 $remoteNames = @(& git -C $ProjectRoot remote)
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect Git remotes.' }
-$hasOrigin = ($remoteNames -contains 'origin')
-if (-not $hasOrigin) {
-    Write-Host "No origin is configured. Connecting to the configured repository: $ExpectedRepoSlug"
-    $repoJson = & gh repo view $ExpectedRepoSlug --json visibility,nameWithOwner 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Repository $ExpectedRepoSlug was not found or is not accessible to the authenticated GitHub account. Create/access it first, then rerun this script."
-    }
-    $repoInfo = ($repoJson | Out-String | ConvertFrom-Json)
-    if ($repoInfo.visibility -ne 'PRIVATE') {
-        throw "Repository $ExpectedRepoSlug is not PRIVATE. Refusing to push SecretPlay source into a public repository."
-    }
-    Invoke-Git @('remote', 'add', 'origin', $ExpectedRemoteUrl)
+if ($remoteNames -notcontains 'origin') {
+    Invoke-Git @('remote', 'add', 'origin', $ExpectedRemote)
 } else {
-    $originOutput = & git -C $ProjectRoot remote get-url origin
-    if ($LASTEXITCODE -ne 0) { throw 'Git remote origin exists, but its URL could not be read.' }
-    $origin = ($originOutput | Out-String).Trim()
+    $origin = (& git -C $ProjectRoot remote get-url origin).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read origin URL.' }
     if ($origin -notmatch '(?:github\.com[:/])([^/]+/[^/]+?)(?:\.git)?$') {
-        throw "Origin is not a recognizable GitHub repository URL: $origin"
+        throw "Origin is not a recognizable GitHub URL: $origin"
     }
-    if ($matches[1] -ne $ExpectedRepoSlug) {
-        throw "This project is configured for $ExpectedRepoSlug, but origin points to $($matches[1]). Refusing to push to the wrong repository."
+    if ($matches[1] -ne $ExpectedRepo) {
+        throw "Expected origin $ExpectedRepo but found $($matches[1]). Refusing to push to another repository."
     }
-    Write-Host "Using configured repository: $ExpectedRepoSlug"
 }
 
-$remoteUrl = (& git -C $ProjectRoot remote get-url origin).Trim()
-$repoInfoJson = & gh repo view $ExpectedRepoSlug --json visibility,nameWithOwner 2>$null
-if ($LASTEXITCODE -ne 0) { throw "Cannot access GitHub repository $ExpectedRepoSlug. Check gh auth status and repository access." }
-$repoInfo = ($repoInfoJson | Out-String | ConvertFrom-Json)
-if ($repoInfo.visibility -ne 'PRIVATE') { throw "Repository $ExpectedRepoSlug is not PRIVATE. Refusing to push SecretPlay source into a public repository." }
+Write-Host 'Fetching the current remote main branch...'
+Invoke-Git @('fetch', 'origin', 'main')
+& git -C $ProjectRoot merge-base --is-ancestor origin/main HEAD
+if ($LASTEXITCODE -ne 0) {
+    throw 'Local main does not contain remote main. Update/rebase first; this helper will never force-push.'
+}
 
-Write-Host 'Staging project files...'
+Write-Host 'Staging project changes...'
 Invoke-Git @('add', '-A')
-$scanPassed = & (Join-Path $PSScriptRoot 'git-secret-scan.ps1') -ProjectRoot $ProjectRoot -StagedOnly
-if ($scanPassed -ne $true) { throw 'Secret scan blocked the push. Review staged files before continuing.' }
+$scanScript = Join-Path $PSScriptRoot 'git-secret-scan.ps1'
+if (Test-Path $scanScript) {
+    $scanResult = & $scanScript -ProjectRoot $ProjectRoot -StagedOnly
+    if ($LASTEXITCODE -ne 0 -or $scanResult -contains $false) {
+        throw 'Secret scan failed. Review staged files before continuing.'
+    }
+}
 
 Write-Host ''
-Write-Host 'Staged file summary:'
+Write-Host 'Staged change summary:'
 Invoke-Git @('diff', '--cached', '--stat')
-$confirm = Read-Host 'Commit and push these files to the PRIVATE repository? (Y/N)'
-if ($confirm -notmatch '^(?i)y(es)?$') { throw 'Push cancelled by user.' }
+$confirmation = Read-Host "Commit and push these changes to $ExpectedRepo on main? (Y/N)"
+if ($confirmation -notmatch '^(?i)y(es)?$') { throw 'Push cancelled by user.' }
 
-# Configure a repository-local commit identity if Git has no identity yet.
-# Use the authenticated GitHub account's noreply address by default.
-$gitName = (& git -C $ProjectRoot config user.name 2>$null | Out-String).Trim()
-$gitEmail = (& git -C $ProjectRoot config user.email 2>$null | Out-String).Trim()
-if ([string]::IsNullOrWhiteSpace($gitName) -or [string]::IsNullOrWhiteSpace($gitEmail)) {
-    $userJson = & gh api user 2>$null
-    if ($LASTEXITCODE -ne 0) { throw 'Could not read the authenticated GitHub account profile to configure the local commit identity.' }
-    $githubUser = ($userJson | Out-String | ConvertFrom-Json)
-    $defaultName = if (-not [string]::IsNullOrWhiteSpace($githubUser.name)) { $githubUser.name } else { $githubUser.login }
-    $defaultEmail = "$($githubUser.id)+$($githubUser.login)@users.noreply.github.com"
-    if ([string]::IsNullOrWhiteSpace($gitName)) {
-        $enteredName = Read-Host "Git commit author name (Enter for '$defaultName')"
-        $gitName = if ([string]::IsNullOrWhiteSpace($enteredName)) { $defaultName } else { $enteredName.Trim() }
-        Invoke-Git @('config', '--local', 'user.name', $gitName)
-    }
-    if ([string]::IsNullOrWhiteSpace($gitEmail)) {
-        $enteredEmail = Read-Host "Git commit email (Enter for GitHub private noreply address '$defaultEmail')"
-        $gitEmail = if ([string]::IsNullOrWhiteSpace($enteredEmail)) { $defaultEmail } else { $enteredEmail.Trim() }
-        Invoke-Git @('config', '--local', 'user.email', $gitEmail)
-    }
-}
-
-$staged = & git -C $ProjectRoot diff --cached --quiet
-if ($LASTEXITCODE -eq 0) { Write-Host 'No staged changes. Checking whether main needs an initial push.' }
-else {
+& git -C $ProjectRoot diff --cached --quiet
+if ($LASTEXITCODE -eq 1) {
     $message = Read-Host 'Commit message (Enter for default)'
-    if ([string]::IsNullOrWhiteSpace($message)) { $message = 'Prepare SecretPlay source and CI pipeline' }
+    if ([string]::IsNullOrWhiteSpace($message)) { $message = 'Fix Android APK Gradle toolchain and CI workflow' }
     Invoke-Git @('commit', '-m', $message)
+} elseif ($LASTEXITCODE -ne 0) {
+    throw 'Could not inspect staged changes.'
+} else {
+    Write-Host 'No staged changes to commit.'
 }
+
 Invoke-Git @('push', '-u', 'origin', 'main')
-Write-Host ''
-Write-Host '[SUCCESS] Source pushed to a PRIVATE GitHub repository.' -ForegroundColor Green
-Write-Host "Repository: https://github.com/$ExpectedRepoSlug"
-Write-Host "Actions:    https://github.com/$ExpectedRepoSlug/actions"
-Write-Host 'The Android CI workflow should now start. Download the APK only after a successful run.'
+Write-Host "[SUCCESS] Changes pushed to https://github.com/$ExpectedRepo/tree/main" -ForegroundColor Green
+Write-Host "Actions: https://github.com/$ExpectedRepo/actions"

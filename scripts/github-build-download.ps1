@@ -24,10 +24,10 @@ if ($LASTEXITCODE -eq 0 -and ($remoteNames -contains 'origin')) {
     if ($matches[1] -ne $RepoSlug) { throw "Expected origin $RepoSlug but found $($matches[1]). Refusing to download from another repository." }
 }
 
-$repoInfoJson = & gh repo view $RepoSlug --json visibility 2>$null
+$repoInfoJson = & gh repo view $RepoSlug --json nameWithOwner 2>$null
 if ($LASTEXITCODE -ne 0) { throw "Cannot access $RepoSlug. Check GitHub CLI authentication and repository access." }
 $repoInfo = ($repoInfoJson | Out-String | ConvertFrom-Json)
-if ($repoInfo.visibility -ne 'PRIVATE') { throw "Expected $RepoSlug to be PRIVATE." }
+if ($repoInfo.nameWithOwner -ne $RepoSlug) { throw "Expected repository $RepoSlug." }
 $actionsUrl = "https://github.com/$RepoSlug/actions/workflows/$WorkflowFile"
 
 Write-Host "Looking for the latest successful APK build in $RepoSlug ..."

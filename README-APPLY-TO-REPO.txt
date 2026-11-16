@@ -1,39 +1,47 @@
-SECRETPLAY — PUSH APK WORKFLOW TO THE EXACT GITHUB REPOSITORY
+SECRETPLAY — APPLY THE ANDROID APK BUILD FIX
 
 Target repository:
 https://github.com/saayedh/chatMakhfee
 
-This patch contains:
-- .github/workflows/android-apk.yml
-- scripts/push-apk-workflow-to-chatMakhfee.bat
-- scripts/push-apk-workflow-to-chatMakhfee.ps1
+This archive is a full source overlay containing the Android build configuration,
+Gradle wrapper bootstrap scripts, GitHub Actions workflow, and matching build
+documentation. The APK fix changes more than the workflow file, so do not use
+the old workflow-only publishing procedure.
 
-HOW TO APPLY
-1. Extract this ZIP directly OVER your existing local SecretPlay repository folder.
-   The folder must contain .git and android_app/pubspec.yaml.
-   Preserve the existing .git folder. Do not delete it.
-2. Ensure Git for Windows and GitHub CLI (gh) are installed.
-3. Authenticate the intended account if needed:
-   gh auth login --hostname github.com --git-protocol https --web
-4. Confirm that `gh auth status` shows account `saayedh` and that the private
-   repository `saayedh/chatMakhfee` exists and is accessible with write access.
-5. Run:
-   scripts\push-apk-workflow-to-chatMakhfee.bat
-6. Review the staged summary and answer Y when asked.
-7. Open:
+APPLY THE FILES
+1. Make a backup of your local repository folder.
+2. Extract the contents of this ZIP directly into the existing repository root.
+   The destination folder must already contain `.git` and `android_app/pubspec.yaml`.
+   Allow files to be overwritten. Do not delete, replace, or extract over `.git`.
+3. Open a terminal in that repository root and run:
+   `git status --short`
+4. Review the changed files. Confirm that the changes are limited to the Android
+   build configuration, wrapper bootstrap, CI workflow, and related documentation.
+
+PUSH TO THE EXISTING MAIN BRANCH
+1. Ensure Git for Windows and GitHub CLI (`gh`) are installed.
+2. Authenticate with GitHub if needed:
+   `gh auth login --hostname github.com --git-protocol https --web`
+3. Check that `gh auth status` shows the intended account and that the
+   repository `saayedh/chatMakhfee` is accessible with write permission.
+4. Run:
+   `scripts\github-push.bat`
+5. Review the complete staged summary carefully. Confirm only after you are
+   satisfied. The helper is configured to push to the existing
+   `saayedh/chatMakhfee` repository and the `main` branch.
+6. Open:
    https://github.com/saayedh/chatMakhfee/actions
 
 SAFETY
-- The script never creates a repository.
-- It checks that the target repository is exactly saayedh/chatMakhfee and PRIVATE.
-- It refuses to run under a different GitHub login.
-- It configures Git author identity only in this local repository using the
-  GitHub noreply address if missing.
-- It commits only .github/workflows/android-apk.yml.
-- It does not deploy Cloudflare, create Workers, run Wrangler, or publish releases.
-- It does not place GitHub tokens in source files.
+- The helper does not create a new repository.
+- It checks the configured origin and the target repository before pushing.
+- It refuses to push to a different repository.
+- It scans staged files for common secret material and asks for confirmation.
+- It does not deploy Cloudflare, run Wrangler, or publish a GitHub Release.
+- It does not store GitHub tokens in source files.
 
 IMPORTANT
-This script pushes the workflow file to the existing repository. It does not
-perform the push until you execute it locally and confirm Y. The actual APK is
-built by GitHub Actions only after the push succeeds.
+The ZIP does not contain an APK. GitHub Actions builds the debug APK only
+after the updated source has been pushed successfully to `main`. A successful
+local source-file check is not proof that the remote APK build has passed;
+confirm the green GitHub Actions run and download the artifact from that run.

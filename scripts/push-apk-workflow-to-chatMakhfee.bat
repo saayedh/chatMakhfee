@@ -9,7 +9,7 @@ if not "%RC%"=="0" (
   echo [ERROR] The APK workflow was not pushed. Read the error above.
 ) else (
   echo.
-  echo [SUCCESS] Workflow pushed to https://github.com/saayedh/chatMakhfee
+  echo [SUCCESS] Reviewed repository changes pushed to https://github.com/saayedh/chatMakhfee
 )
 echo.
 pause

@@ -5,7 +5,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.10.0
-  flutter: ">=3.38.0"
+  flutter: ">=3.44.0"
 
 # All versions are pinned exactly and were checked on pub.dev when this project
 # was written. If `flutter pub get` reports a resolution conflict, update the

@@ -1,23 +1,27 @@
 # Android build
 
-## Toolchain used by the APK workflow
+## Pinned toolchain
 
 | Component | Version / requirement | Why |
 |---|---|---|
-| Flutter | 3.50.0 stable | Pinned CI toolchain; ships stable Dart 3.14.x |
-| Dart | 3.14.x stable (from Flutter 3.50.0) | Satisfies the `^3.10.0` SDK constraint without pre-release resolution |
-| JDK | 17 | Compatible Android Gradle / Kotlin toolchain |
-| Android SDK | Platform 36, Build Tools 36.0.0 | Project `compileSdk` / `targetSdk` |
-| Android NDK | 28.2.13676358 (CI) | Native Rust/vodozemac build |
-| Rust | Stable, Android targets installed | `flutter_vodozemac` native build |
-| Android Gradle Plugin | 8.11.1 | Existing project plugin line; kept below AGP 9 while dependencies are not migrated to built-in Kotlin |
-| Kotlin Gradle Plugin | 2.2.20 | Existing Android app plugin configuration |
-| Gradle | 8.14.3 | Compatible with AGP 8.11.1 |
+| Flutter | 3.50.0 stable (CI) | Stable SDK pinned by GitHub Actions |
+| Dart | 3.14.x stable (CI) | Ships with Flutter 3.50.0 and satisfies `sdk: ^3.10.0` |
+| JDK | 17 | Required by the Android Gradle toolchain |
+| Android SDK | Platform 36, Build Tools 36.0.0 | Matches the app's `compileSdk` / `targetSdk` |
+| Android NDK | 28.2.13676358 | Installed for the native Vodozemac/Cargokit build |
+| Android Gradle Plugin | 9.3.1 | Meets Flutter 3.50's AGP minimum and matches its current Android template |
+| Gradle | 9.5.0 | Matches the Flutter 3.50 Android toolchain baseline and AGP 9.3.1 |
+| Kotlin Gradle Plugin | 2.4.20 | Fully compatible with Gradle 9.5.0 and AGP 9.3.1 |
 
-Flutter 3.50.0 is the stable SDK pinned by CI. The application intentionally keeps
-its existing AGP 8.11.1 / Kotlin 2.2.20 setup rather than opting into AGP 9,
-because the app and every native plugin must be verified for AGP 9 / built-in
-Kotlin compatibility before that migration. Keep the workflow and Gradle files aligned.
+The project uses AGP 9 with the legacy Kotlin Gradle Plugin temporarily enabled:
+`android.builtInKotlin=false` and `android.newDsl=false` are set in
+`android_app/android/gradle.properties`. This preserves compatibility with
+Android libraries and Flutter plugins that have not all been migrated to
+AGP's built-in Kotlin / new DSL. The project-level KGP version is still pinned
+to 2.4.20, which is compatible with the selected AGP and Gradle versions.
+
+Do not remove these compatibility flags or enable built-in Kotlin until every
+Android plugin resolved by this app has been checked for that migration.
 
 ## Rust targets
 
@@ -27,29 +31,33 @@ Run in an elevated or normal terminal after installing rustup:
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 ```
 
-The native vodozemac plugin is built through its Rust/cargokit integration. The
-GitHub workflow installs the Android Rust targets but disables the Rust cache
-action because the repository has no root Cargo.toml for `cargo metadata` to
-inspect. A Flutter dependency resolution alone does not prove the native
-Android library was built successfully.
+The native Vodozemac plugin is built through its Rust/Cargokit integration.
+The GitHub workflow installs the Android Rust targets but disables the Rust
+cache action because the repository has no root `Cargo.toml` for `cargo
+metadata` to inspect. A Flutter dependency resolution alone does not prove
+that the native Android library was built successfully.
 
 ## Generate the Gradle Wrapper
 
-The source archive includes the pinned `gradle-wrapper.properties` and a
-bootstrapper. The Gradle wrapper JAR and launchers are generated from the
-official Gradle distribution on the target machine, then the distribution
-checksum is pinned.
+The source archive includes the pinned `gradle-wrapper.properties` and
+bootstrap scripts. The wrapper launchers and JAR are generated from the
+official Gradle 9.5.0 distribution. Both the distribution ZIP and generated
+wrapper JAR are checked against their official SHA-256 values before use.
 
-Run after installing Flutter, JDK and Android SDK:
+On Windows, run:
 
 ```bat
 scripts\ensure-gradle-wrapper.bat
 ```
 
-The helper downloads Gradle 8.14.3 and verifies the official SHA-256 before
-using it to generate `gradlew`, `gradlew.bat`, and `gradle-wrapper.jar`. The
-expected distribution checksum is also committed in
-`android_app\android\gradle\wrapper\gradle-wrapper.properties`.
+The helper downloads Gradle 9.5.0, verifies the official distribution checksum,
+generates `gradlew`, `gradlew.bat`, and `gradle-wrapper.jar` in a temporary
+minimal project, copies them into `android_app\android`, and pins the wrapper
+properties. It does not need to resolve the app's Flutter/Android plugins just
+to generate the wrapper.
+
+The GitHub Actions workflow runs the equivalent Bash helper,
+`scripts/ensure-gradle-wrapper.sh`, **before** invoking the Flutter APK build.
 
 ## Debug build
 
@@ -67,15 +75,27 @@ Do not distribute it as a production release.
 
 ## GitHub APK build
 
-GitHub Actions builds only one debug APK and uploads it as the `SecretPlay-Android-APK` artifact. It runs on pushes to `main` and manual dispatch. The workflow does not run Node/TypeScript backend checks, Wrangler, Cloudflare deployment, local server tasks, signing, or GitHub Release publishing. Rust is installed only because the Flutter Vodozemac plugin compiles native Android code through Cargokit; Rust dependency caching is disabled because this repository has no root Cargo.toml. See [GITHUB_SETUP.md](GITHUB_SETUP.md).
+GitHub Actions builds one debug APK and uploads it as the
+`SecretPlay-Android-APK` artifact. It runs on pushes to `main` and manual
+dispatch. The workflow installs JDK 17, Android SDK 36 / Build Tools 36.0.0 /
+NDK 28.2.13676358, Flutter 3.50.0 stable, and Rust Android targets needed by
+the native Vodozemac build. It disables optional Rust caching because this
+repository has no root `Cargo.toml`.
 
-The APK is debug-signed and suitable for testing. Runner-generated debug certificates can differ between builds, so an older installation may need to be uninstalled before installing a new APK.
+The workflow resolves Flutter dependencies, generates and verifies the
+Gradle 9.5.0 wrapper, runs `flutter build apk --debug`, and uploads
+`android_app/build/app/outputs/flutter-apk/app-debug.apk`. It does not run
+Node/TypeScript backend checks, Wrangler, Cloudflare deployment, local server
+tasks, signing, or GitHub Release publishing. See `GITHUB_SETUP.md`.
 
-## What remains unverified in this delivery environment
+## Verification limits
 
-The current authoring environment does not have Flutter, Dart, Android SDK,
-Rust, Gradle or Windows PowerShell. Therefore no local APK has been generated,
-Flutter analyzer/test execution is not claimed, and the BAT/PowerShell scripts
-have not been executed on Windows. GitHub Actions must perform the first clean
-CI build after the repository is pushed. Physical-device voice, pairing,
-biometrics and offline LAN tests remain mandatory before sensitive use.
+The source-editing environment used for this update does not have Flutter,
+Dart, Android SDK, Rust, or Gradle installed. Therefore a full Flutter APK
+build, Dart analyzer run, Flutter tests, and Windows PowerShell execution
+cannot be claimed from this environment. The updated workflow and build
+configuration can be statically checked here; the first real APK build must
+be confirmed by the GitHub Actions run after the changes are pushed.
+
+Physical-device voice, pairing, biometrics, and offline LAN tests remain
+mandatory before using the app for sensitive communication.

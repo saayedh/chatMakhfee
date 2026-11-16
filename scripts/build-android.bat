@@ -10,7 +10,7 @@ echo.
 where flutter >nul 2>nul
 if errorlevel 1 (
   echo [X] Flutter was not found on PATH.
-  echo     Install Flutter 3.38+ and add its bin folder to PATH, then
+  echo     Install Flutter 3.44+ and add its bin folder to PATH, then
   echo     reopen this window. https://docs.flutter.dev/get-started/install/windows
   pause
   exit /b 1

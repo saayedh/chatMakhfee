@@ -26,7 +26,7 @@ These are syntax/format checks only. They do not establish TypeScript type corre
 
 ## Required commands on a supported Windows development machine
 
-Install Node.js 22.18.0+, Flutter 3.38+, Dart 3.10+, Android SDK 36, JDK 17 and Rust. Then run:
+Install Node.js 22.18.0+, Flutter 3.44+, Dart 3.12+, Android SDK 36, JDK 17 and Rust. Then run:
 
 ```bat
 cd crypto_core && npm ci && npm test && npm run typecheck

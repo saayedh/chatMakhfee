@@ -22,13 +22,13 @@ The single job performs only the steps required to produce an Android debug APK:
 3. install stable Flutter 3.50.0 (Dart 3.14.x stable);
 4. install Rust and Android compilation targets needed by `flutter_vodozemac` (Cargo cache disabled because there is no repository-root Cargo manifest);
 5. resolve Flutter dependencies;
-6. generate the Gradle wrapper from the checksum-pinned Gradle distribution;
+6. generate and verify the Gradle 9.5.0 wrapper from the official checksum-pinned distribution;
 7. run `flutter build apk --debug`;
 8. upload `SecretPlay-Android.apk` as the `SecretPlay-Android-APK` artifact.
 
 There are no backend test jobs, TypeScript checks, Wrangler commands, Cloudflare deployments, signing secrets, tag-based releases, or GitHub Release creation in the workflow.
 
-## 2. Push source to the configured private repository
+## 2. Push source to the configured repository
 
 Install Git for Windows and GitHub CLI (`gh`), then authenticate:
 
@@ -49,7 +49,7 @@ The helper is configured for `saayedh/chatMakhfee`. If no `origin` exists, it ad
 https://github.com/saayedh/chatMakhfee.git
 ```
 
-It refuses to push to a different or public repository, scans staged files for common secret material, shows the staged summary, configures a repository-local Git author identity if needed, and asks before committing and pushing to `main`.
+It refuses to push to a different repository, scans staged files for common secret material, shows the staged summary, configures a repository-local Git author identity if needed, and asks before committing and pushing to `main`. The repository may be public or private; never commit API keys, tokens, credentials, private signing material, or local environment files.
 
 Repository URL: https://github.com/saayedh/chatMakhfee
 Actions page: https://github.com/saayedh/chatMakhfee/actions
@@ -62,7 +62,7 @@ After a successful run, download it from the website:
 2. Open the successful **Build SecretPlay Android APK** run.
 3. Find the **Artifacts** section at the bottom.
 4. Download `SecretPlay-Android-APK`.
-5. Extract the artifact ZIP; it contains `SecretPlay-Android.apk`.
+5. Extract the artifact ZIP; it contains the APK built by Flutter (`app-debug.apk`). The download helper copies it locally as `SecretPlay-Android.apk`.
 
 Or run this helper from the project folder:
 
