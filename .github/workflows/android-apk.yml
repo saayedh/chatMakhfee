@@ -76,7 +76,7 @@ jobs:
           flutter --version
           DART_VERSION_LINE="$(dart --version 2>&1)"
           printf '%s\n' "$DART_VERSION_LINE"
-          if ! printf '%s\n' "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3.13.7 (stable)'; then
+          if ! printf '%s\n' "$DART_VERSION_LINE" | grep -Eq 'Dart SDK version: 3\.13\.7 \(stable\)'; then
             echo "Expected stable Dart 3.13.7 from Flutter 3.47.9." >&2
             exit 1
           fi
