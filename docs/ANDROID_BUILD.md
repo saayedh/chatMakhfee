@@ -13,15 +13,21 @@
 | Gradle | 9.5.0 | Matches the Flutter 3.50 Android toolchain baseline and AGP 9.3.1 |
 | Kotlin Gradle Plugin | 2.4.20 | Fully compatible with Gradle 9.5.0 and AGP 9.3.1 |
 
-The project uses AGP 9 with the legacy Kotlin Gradle Plugin temporarily enabled:
-`android.builtInKotlin=false` and `android.newDsl=false` are set in
-`android_app/android/gradle.properties`. This preserves compatibility with
-Android libraries and Flutter plugins that have not all been migrated to
-AGP's built-in Kotlin / new DSL. The project-level KGP version is still pinned
-to 2.4.20, which is compatible with the selected AGP and Gradle versions.
+The project uses AGP 9.3.1 with Kotlin Gradle Plugin 2.4.20. The app module
+configures Android through the public `ApplicationExtension` DSL and Kotlin
+through the typed `kotlin.compilerOptions` DSL. Temporary flags
+`android.builtInKotlin=false` and `android.newDsl=false` remain in
+`android_app/android/gradle.properties` to retain compatibility with Flutter
+and native plugins that may still depend on the legacy plugin mode.
 
-Do not remove these compatibility flags or enable built-in Kotlin until every
-Android plugin resolved by this app has been checked for that migration.
+The app build script avoids the deprecated AGP/Kotlin APIs that caused the
+first AGP 9 compile-script failure: it uses `ApplicationExtension` instead of
+the legacy `android { }` accessor, `compilerOptions` instead of
+`kotlinOptions`, and `androidResources.localeFilters` instead of
+`resourceConfigurations`.
+
+Keep the temporary compatibility flags until every Android plugin resolved by
+this app has been verified with AGP built-in Kotlin and the new DSL.
 
 ## Rust targets
 

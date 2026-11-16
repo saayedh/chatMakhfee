@@ -1,3 +1,7 @@
+import com.android.build.api.dsl.ApplicationExtension
+import org.gradle.kotlin.dsl.configure
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -27,10 +31,15 @@ if (releaseTaskRequested && !hasReleaseSigning) {
     )
 }
 
-android {
+// Read Flutter's selected NDK version from its Gradle extension before configuring AGP.
+val flutterNdkVersion = flutter.ndkVersion
+
+// Configure AGP through the supported public DSL interface. AGP 9 deprecates the
+// legacy BaseAppModuleExtension android {} accessor, so do not use that accessor.
+extensions.configure<ApplicationExtension>("android") {
     namespace = "app.secretplay"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = flutterNdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -38,24 +47,24 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     defaultConfig {
         applicationId = "app.secretplay"
-        // Flutter 3.38's supported Android baseline is API 24.
+        // Flutter's supported Android baseline for this project is API 24.
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        resourceConfigurations += listOf("en")
+    }
+
+    androidResources {
+        // Keep the same language filtering behavior using the current AGP API.
+        localeFilters.add("en")
     }
 
     signingConfigs {
         create("release") {
             if (hasReleaseSigning) {
-                storeFile = file(uploadKeystorePath!!)
+                storeFile = project.file(uploadKeystorePath!!)
                 storePassword = uploadStorePassword
                 keyAlias = uploadKeyAlias
                 keyPassword = uploadKeyPassword
@@ -65,7 +74,7 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
@@ -77,6 +86,13 @@ android {
             // vodozemac ships its Rust .so per ABI; do not strip what cargokit built.
             useLegacyPackaging = true
         }
+    }
+}
+
+// Kotlin 2.4+ uses the typed compilerOptions DSL instead of deprecated kotlinOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
